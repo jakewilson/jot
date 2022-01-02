@@ -4,6 +4,7 @@ module Lib
     ( getNotes
     , JotDB(..)
     , Note(..)
+    , saveNotes
     ) where
 
 import Data.Aeson
@@ -38,7 +39,7 @@ instance ToJSON Note where
 
 instance FromJSON Note
 
-jotPath :: IO String
+jotPath :: IO FilePath
 jotPath = (++ "/jot.json") <$> getHomeDirectory
 
 getNotes :: IO JotDB
@@ -49,3 +50,6 @@ getNotes = do
   case decode $ BLU.fromString jsonDb :: Maybe JotDB of
     (Just db) -> return db
     Nothing   -> return (JotDB [] []) -- TODO create file here
+
+saveNotes :: JotDB -> IO ()
+saveNotes notes = jotPath >>= (`writeFile` (BLU.toString $ encode notes))

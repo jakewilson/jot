@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Lib (getNotes, JotDB(..), Note(..))
+import Lib
+  ( getNotes
+  , JotDB(..)
+  , Note(..)
+  , saveNotes
+  )
 
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
@@ -12,7 +17,7 @@ recentNotes :: JotDB -> T.Text
 recentNotes = T.unlines . map note . take 5 . notes
 
 addNote :: JotDB -> T.Text -> JotDB
-addNote (JotDB ns hs) note = JotDB ((Note 1000 note):ns) hs
+addNote (JotDB ns hs) note = JotDB (Note 1000 note : ns) hs
 
 mainLoop :: JotDB -> IO ()
 mainLoop jot = do
@@ -21,7 +26,7 @@ mainLoop jot = do
   inp <- T.words <$> T.getLine
   case inp of
     []         -> mainLoop jot
-    ("q":_)    -> return ()
+    ("q":_)    -> saveNotes jot
     ("qu":_)   -> return ()
     ("qui":_)  -> return ()
     ("quit":_) -> return ()
@@ -30,7 +35,7 @@ mainLoop jot = do
       T.putStr $ recentNotes updatedNotes
       mainLoop updatedNotes
 
+main :: IO ()
 main = do
   notes <- getNotes
   mainLoop notes
-  -- TODO save notes
