@@ -6,6 +6,8 @@ import Lib
   , JotDB(..)
   , Note(..)
   , saveNotes
+  , Timestamp
+  , saveNotes
   )
 
 import qualified Data.Text    as T
@@ -16,8 +18,14 @@ import System.IO
 recentNotes :: JotDB -> T.Text
 recentNotes = T.unlines . map note . take 5 . notes
 
+ts :: Timestamp
+ts = 1000
+
 addNote :: JotDB -> T.Text -> JotDB
-addNote (JotDB ns hs) note = JotDB (Note 1000 note : ns) hs
+addNote (JotDB [] hs)     note = JotDB notes hs
+  where notes = [Note ts note 0]
+addNote (JotDB (n:ns) hs) note = JotDB notes hs
+  where notes = Note ts note (Lib.id n + 1) : n : ns
 
 mainLoop :: JotDB -> IO ()
 mainLoop jot = do
@@ -27,9 +35,6 @@ mainLoop jot = do
   case inp of
     []         -> mainLoop jot
     ("q":_)    -> saveNotes jot
-    ("qu":_)   -> return ()
-    ("qui":_)  -> return ()
-    ("quit":_) -> return ()
     xs         -> do
       let updatedNotes = addNote jot $ T.unwords xs
       T.putStr $ recentNotes updatedNotes

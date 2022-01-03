@@ -5,6 +5,8 @@ module Lib
     , JotDB(..)
     , Note(..)
     , saveNotes
+    , Timestamp
+    , NoteID
     ) where
 
 import Data.Aeson
@@ -27,10 +29,13 @@ instance ToJSON JotDB where
 
 instance FromJSON JotDB
 
+type Timestamp = Integer
+type NoteID    = Int
 
 data Note = Note
-  { timestamp :: Integer
-  , note     :: T.Text
+  { timestamp :: Timestamp
+  , note      :: T.Text
+  , id        :: NoteID
   }
   deriving (Generic, Show)
 
@@ -42,14 +47,22 @@ instance FromJSON Note
 jotPath :: IO FilePath
 jotPath = (++ "/jot.json") <$> getHomeDirectory
 
+emptyJot :: JotDB
+emptyJot = JotDB [] []
+
 getNotes :: IO JotDB
 getNotes = do
   path <- jotPath
-  -- if file doesn't exist, create it
-  jsonDb <- readFile path
-  case decode $ BLU.fromString jsonDb :: Maybe JotDB of
-    (Just db) -> return db
-    Nothing   -> return (JotDB [] []) -- TODO create file here
+  exists <- doesFileExist path
+  if not exists
+  then return emptyJot
+  else do
+    jsonDb <- readFile path
+    case decode $ BLU.fromString jsonDb :: Maybe JotDB of
+      (Just db) -> return db
+      Nothing   -> do
+        putStrLn "unrecognizable jot format - is your jotfile corrupted?"
+        return emptyJot
 
 saveNotes :: JotDB -> IO ()
 saveNotes notes = jotPath >>= (`writeFile` (BLU.toString $ encode notes))
