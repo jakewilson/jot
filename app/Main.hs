@@ -16,8 +16,20 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import System.IO
 
+format :: Int -> Note -> T.Text
+format len n = T.unwords [(padN len $ Lib.id n), note n]
+
+padN :: Int -> Int -> T.Text
+padN len n = T.pack $ strN ++ (take desiredLen $ repeat ' ')
+  where
+    strN = show n
+    desiredLen = len - (length strN)
+
 recentNotes :: JotDB -> T.Text
-recentNotes = T.unlines . map note . take 5 . notes
+recentNotes jot = T.unlines $ map (format len) n
+  where
+    n = take 5 $ notes jot
+    len = length $ show $ maximum $ map Lib.id n
 
 printRecent :: JotDB -> IO ()
 printRecent = T.putStr . recentNotes
