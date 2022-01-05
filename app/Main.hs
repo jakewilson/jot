@@ -12,23 +12,28 @@ import Lib
 
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
+import Data.Time.Clock.POSIX (getPOSIXTime)
 
 import System.IO
 
 recentNotes :: JotDB -> T.Text
 recentNotes = T.unlines . map note . take 5 . notes
 
-ts :: Timestamp
-ts = 1000
+printRecent :: JotDB -> IO ()
+printRecent = T.putStr . recentNotes
 
-addNote :: JotDB -> T.Text -> JotDB
-addNote (JotDB [] hs)     note = JotDB notes hs
-  where notes = [Note ts note 0]
-addNote (JotDB (n:ns) hs) note = JotDB notes hs
-  where notes = Note ts note (Lib.id n + 1) : n : ns
+ts :: IO Timestamp
+ts = round . (* 1000) <$> getPOSIXTime
+
+addNote :: JotDB -> Timestamp -> T.Text -> JotDB
+addNote (JotDB [] hs) t    note  = JotDB notes hs
+  where notes = [Note t note 0]
+addNote (JotDB (n:ns) hs) t note = JotDB notes hs
+  where notes = Note t note (Lib.id n + 1) : n : ns
 
 mainLoop :: JotDB -> IO ()
 mainLoop jot = do
+  printRecent jot -- TODO change to printRandom
   T.putStr "> "
   hFlush stdout
   inp <- T.words <$> T.getLine
@@ -36,8 +41,8 @@ mainLoop jot = do
     []         -> mainLoop jot
     ("q":_)    -> saveNotes jot
     xs         -> do
-      let updatedNotes = addNote jot $ T.unwords xs
-      T.putStr $ recentNotes updatedNotes
+      timestamp <- ts
+      let updatedNotes = addNote jot timestamp $ T.unwords xs
       mainLoop updatedNotes
 
 main :: IO ()
