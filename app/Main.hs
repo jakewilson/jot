@@ -6,10 +6,14 @@ import Lib
   , JotDB(..)
   , Note(..)
   , saveNotes
+  , NoteID
   , Timestamp
+  , WordIndex
   , saveNotes
   )
 
+import qualified Data.Char    as C
+import qualified Data.Map     as M
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -17,13 +21,13 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.IO
 
 format :: Int -> Note -> T.Text
-format len n = T.unwords [(padN len $ Lib.id n), note n]
+format len n = T.unwords [padN len $ Lib.id n, note n]
 
 padN :: Int -> Int -> T.Text
-padN len n = T.pack $ strN ++ (take desiredLen $ repeat ' ')
+padN len n = T.pack $ strN ++ replicate desiredLen ' '
   where
     strN = show n
-    desiredLen = len - (length strN)
+    desiredLen = len - length strN
 
 recentNotes :: JotDB -> T.Text
 recentNotes jot = T.unlines $ map (format len) n
@@ -37,15 +41,32 @@ printRecent = T.putStr . recentNotes
 ts :: IO Timestamp
 ts = round . (* 1000) <$> getPOSIXTime
 
+nextNoteID :: [Note] -> NoteID
+nextNoteID []     = 0
+nextNoteID (n:ns) = Lib.id n + 1
+
+updateWordIdx :: WordIndex -> Note -> WordIndex
+updateWordIdx idx (Note _ text nid) = foldr (addWord nid) idx words
+  where
+    words = T.words $ T.filter (\c -> C.isAlphaNum c || C.isSpace c) text
+
+    addWord :: NoteID -> T.Text -> WordIndex -> WordIndex
+    addWord nid word = M.insertWith addIfNotThere (T.toLower word) [nid]
+
+    addIfNotThere :: [NoteID] -> [NoteID] -> [NoteID]
+    addIfNotThere xs [] = xs
+    addIfNotThere [] _  = error "empty note id" -- should never happen
+    addIfNotThere xs'@(x:xs) ys'@(y:ys)
+      | x == y = ys'
+      | otherwise = xs' ++ ys'
+
 addNote :: JotDB -> Timestamp -> T.Text -> JotDB
-addNote (JotDB [] hs) t    note  = JotDB notes hs
-  where notes = [Note t note 0]
-addNote (JotDB (n:ns) hs) t note = JotDB notes hs
-  where notes = Note t note (Lib.id n + 1) : n : ns
+addNote (JotDB ns idx) t noteTxt = JotDB (note : ns) (updateWordIdx idx note)
+  where note = Note t noteTxt (nextNoteID ns)
 
 mainLoop :: JotDB -> IO ()
 mainLoop jot = do
-  printRecent jot -- TODO change to printRandom
+  printRecent jot
   T.putStr "> "
   hFlush stdout
   inp <- T.words <$> T.getLine
@@ -60,4 +81,5 @@ mainLoop jot = do
 main :: IO ()
 main = do
   notes <- getNotes
+  -- TODO add printRandom
   mainLoop notes

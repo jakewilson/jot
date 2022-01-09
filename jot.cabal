@@ -34,6 +34,7 @@ library
       aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , directory
     , text
     , time
@@ -51,6 +52,7 @@ executable jot-exe
       aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , directory
     , jot
     , text
@@ -70,6 +72,7 @@ test-suite jot-test
       aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , directory
     , jot
     , text

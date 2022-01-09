@@ -7,10 +7,12 @@ module Lib
     , saveNotes
     , Timestamp
     , NoteID
+    , WordIndex
     ) where
 
 import Data.Aeson
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import qualified Data.Map     as M
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 
@@ -19,8 +21,8 @@ import GHC.Generics
 import System.Directory
 
 data JotDB = JotDB
-  { notes    :: [Note]
-  , hashtags :: [T.Text]
+  { notes :: [Note]
+  , words :: WordIndex
   }
   deriving (Generic, Show)
 
@@ -31,6 +33,7 @@ instance FromJSON JotDB
 
 type Timestamp = Integer
 type NoteID    = Int
+type WordIndex = M.Map T.Text [NoteID]
 
 data Note = Note
   { timestamp :: Timestamp
@@ -48,7 +51,7 @@ jotPath :: IO FilePath
 jotPath = (++ "/jot.json") <$> getHomeDirectory
 
 emptyJot :: JotDB
-emptyJot = JotDB [] []
+emptyJot = JotDB [] M.empty
 
 getNotes :: IO JotDB
 getNotes = do
