@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Lib
@@ -12,7 +13,9 @@ import Lib
   , saveNotes
   )
 
-import qualified Data.Char    as C
+import Data.Char (isAlphaNum)
+import Data.List (nub)
+
 import qualified Data.Map     as M
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
@@ -35,6 +38,16 @@ recentNotes jot = T.unlines $ map (format len) n
     n = take 5 $ notes jot
     len = length $ show $ maximum $ map Lib.id n
 
+formatNotes :: [Note] -> T.Text
+formatNotes ns = T.unlines $ map (format padLen) ns
+  where
+    -- the length to pad all note ids to
+    -- so all notes are aligned like:
+    -- 100 <note1>
+    -- 99  <note2>
+    -- 5   <note3>
+    padLen = length $ show $ maximum $ map Lib.id ns
+
 printRecent :: JotDB -> IO ()
 printRecent = T.putStr . recentNotes
 
@@ -45,11 +58,12 @@ nextNoteID :: [Note] -> NoteID
 nextNoteID []     = 0
 nextNoteID (n:ns) = Lib.id n + 1
 
-updateWordIdx :: WordIndex -> Note -> WordIndex
-updateWordIdx idx (Note _ text nid) = foldr (addWord nid) idx words
-  where
-    words = T.words $ T.filter (\c -> C.isAlphaNum c || C.isSpace c) text
+jotWords :: T.Text -> [T.Text]
+jotWords = map (T.filter isAlphaNum) . T.words
 
+updateWordIdx :: WordIndex -> Note -> WordIndex
+updateWordIdx idx (Note _ text nid) = foldr (addWord nid) idx $ jotWords text
+  where
     addWord :: NoteID -> T.Text -> WordIndex -> WordIndex
     addWord nid word = M.insertWith addIfNotThere (T.toLower word) [nid]
 
@@ -64,19 +78,39 @@ addNote :: JotDB -> Timestamp -> T.Text -> JotDB
 addNote (JotDB ns idx) t noteTxt = JotDB (note : ns) (updateWordIdx idx note)
   where note = Note t noteTxt (nextNoteID ns)
 
-mainLoop :: JotDB -> IO ()
-mainLoop jot = do
-  printRecent jot
+search :: JotDB -> [T.Text] -> [NoteID]
+search (JotDB _ idx) xs =
+  case foldr (\word -> (M.lookup word idx <>)) Nothing xs of
+    Nothing    -> []
+    (Just ids) -> nub ids
+
+prompt :: IO ()
+prompt = do
   T.putStr "> "
   hFlush stdout
-  inp <- T.words <$> T.getLine
+
+notesFromIds :: JotDB -> [NoteID] -> [Note]
+notesFromIds (JotDB notes _) ids = filter (\(Note _ _ id) -> id `elem` ids) notes
+
+mainLoop :: JotDB -> IO ()
+mainLoop jot = do
+  prompt
+  inp <- T.getLine
   case inp of
-    []         -> mainLoop jot
-    ("q":_)    -> saveNotes jot
-    xs         -> do
-      timestamp <- ts
-      let updatedNotes = addNote jot timestamp $ T.unwords xs
-      mainLoop updatedNotes
+    ""     -> mainLoop jot
+    "q"    -> saveNotes jot
+    xs     -> case T.head xs of
+      '/' -> do
+        let terms = map T.toLower $ jotWords xs
+        let ids = search jot terms
+        let notes = notesFromIds jot ids
+        T.putStrLn $ formatNotes notes
+        mainLoop jot
+
+      f -> do
+        timestamp <- ts
+        let jot' = addNote jot timestamp xs
+        mainLoop jot'
 
 main :: IO ()
 main = do
